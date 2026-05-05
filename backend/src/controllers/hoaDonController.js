@@ -117,7 +117,7 @@ const goiMon = async (req, res) => {
 const thanhToan = async (req, res) => {
   try {
     const { maHD, maBan, phuongThuc } = req.body;
-    const pt = phuongThuc || N'Tiền mặt';
+    const pt = phuongThuc || 'Tiền mặt';
     
     // Cập nhật hóa đơn
     const reqHD = new sql.Request();

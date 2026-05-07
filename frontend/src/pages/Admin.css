@@ -96,3 +96,34 @@
 .btn-edit:hover {
   background-color: #1976d2;
 }
+
+.btn-success {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-danger {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-logout {
+  background-color: #9e9e9e;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-success:hover { background-color: #388e3c; }
+.btn-danger:hover { background-color: #d32f2f; }
+.btn-logout:hover { background-color: #757575; }

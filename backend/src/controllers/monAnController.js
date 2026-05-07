@@ -3,7 +3,7 @@ const { sql } = require('../config/db');
 const getAllMonAn = async (req, res) => {
   try {
     const request = new sql.Request();
-    const result = await request.query('SELECT * FROM MonAn WHERE TrangThai != N\'Ngừng bán\'');
+    const result = await request.query('SELECT * FROM MonAn');
     res.json(result.recordset);
   } catch (err) {
     console.error(err);
@@ -49,6 +49,7 @@ const deleteMonAn = async (req, res) => {
     const { id } = req.params;
     const request = new sql.Request();
     request.input('id', sql.Int, id);
+    console.log(`Setting status to Ngừng bán for MaMon: ${id}`);
     await request.query(`UPDATE MonAn SET TrangThai=N'Ngừng bán' WHERE MaMon=@id`);
     res.json({ message: 'Xóa (ngừng bán) món ăn thành công' });
   } catch (err) {

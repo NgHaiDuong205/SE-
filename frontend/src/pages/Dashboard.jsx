@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTables, bookTable, getInvoice, orderItem, getMenu, checkout, updateTableStatus, getAllDatBan, createDatBan, updateTrangThaiDatBan, checkVoucher } from '../services/api';
+import { getTables, bookTable, getInvoice, orderItem, getMenu, getCombos, checkout, updateTableStatus, getAllDatBan, createDatBan, updateTrangThaiDatBan, checkVoucher } from '../services/api';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const [tables, setTables] = useState([]);
   const [selectedTable, setSelectedTable] = useState(null);
   const [menu, setMenu] = useState([]);
+  const [combos, setCombos] = useState([]);
   const [invoice, setInvoice] = useState(null);
   const [datBans, setDatBans] = useState([]);
+  const [quantities, setQuantities] = useState({}); // { itemKey: quantity }
+
   
   // Checkout Modal states
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -16,12 +19,15 @@ const Dashboard = () => {
   const [voucherCode, setVoucherCode] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
 
+  // Receipt Modal states
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
+
   // Dat Ban Modal states
   const [showDatBanModal, setShowDatBanModal] = useState(false);
   const [formDatBan, setFormDatBan] = useState({
     TenKhachHang: '',
-    SoDienThoai: '',
-    ThoiGianDat: ''
+    SoDienThoai: ''
   });
 
   const navigate = useNavigate();
@@ -39,7 +45,7 @@ const Dashboard = () => {
   const fetchMenu = async () => {
     try {
       const res = await getMenu();
-      setMenu(res.data);
+      setMenu(res.data.filter(m => m.TrangThai !== 'Ngừng bán'));
     } catch (err) {
       console.error(err);
     }
@@ -54,9 +60,19 @@ const Dashboard = () => {
     }
   };
 
+  const fetchCombos = async () => {
+    try {
+      const res = await getCombos();
+      setCombos(res.data.filter(c => c.TrangThai !== 'Ngừng hoạt động'));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchTables();
     fetchMenu();
+    fetchCombos();
     fetchDatBans();
   }, []);
 
@@ -76,34 +92,21 @@ const Dashboard = () => {
     }
   };
 
-  const handleDatBan = async () => {
-    if (!selectedTable) return;
-    try {
-      const res = await bookTable(selectedTable.MaBan, user.MaNV);
-      setInvoice({ MaHD: res.data.maHD, ChiTiet: [], TongTien: 0 });
-      fetchTables();
-      setSelectedTable({ ...selectedTable, TrangThai: 'Đang phục vụ' });
-    } catch (err) {
-      alert('Lỗi đặt bàn');
-    }
-  };
-
   const handleDatBanSubmit = async () => {
     if (!selectedTable) return;
     try {
-      await createDatBan({
-        MaBan: selectedTable.MaBan,
-        MaNhanVien: user.MaNV,
+      const res = await bookTable({
+        maBan: selectedTable.MaBan,
+        maNV: user.MaNV,
         TenKhachHang: formDatBan.TenKhachHang,
-        SoDienThoai: formDatBan.SoDienThoai,
-        ThoiGianDat: formDatBan.ThoiGianDat
+        SoDienThoai: formDatBan.SoDienThoai
       });
       alert('Đặt bàn thành công');
       setShowDatBanModal(false);
-      setFormDatBan({ TenKhachHang: '', SoDienThoai: '', ThoiGianDat: '' });
+      setFormDatBan({ TenKhachHang: '', SoDienThoai: '' });
+      setInvoice({ MaHD: res.data.maHD, ChiTiet: [], TongTien: 0, TenKhachHang: formDatBan.TenKhachHang, SoDienThoai: formDatBan.SoDienThoai });
       fetchTables();
-      fetchDatBans();
-      setSelectedTable({ ...selectedTable, TrangThai: 'Đã đặt' });
+      setSelectedTable({ ...selectedTable, TrangThai: 'Đang phục vụ' });
     } catch (err) {
       alert(err.response?.data?.message || 'Lỗi đặt bàn');
     }
@@ -138,18 +141,41 @@ const Dashboard = () => {
 
   const handleGoiMon = async (mon) => {
     if (!invoice) return;
+    const soLuong = quantities[`mon_${mon.MaMon}`] || 1;
     try {
       await orderItem({
         maHD: invoice.MaHD,
         maMon: mon.MaMon,
-        soLuong: 1,
+        soLuong: Number(soLuong),
         donGia: mon.Gia
       });
       // Refresh invoice
       const res = await getInvoice(selectedTable.MaBan);
       setInvoice(res.data.data);
+      // Reset quantity
+      setQuantities({ ...quantities, [`mon_${mon.MaMon}`]: 1 });
     } catch (err) {
       alert('Lỗi gọi món');
+    }
+  };
+
+  const handleGoiCombo = async (combo) => {
+    if (!invoice) return;
+    const soLuong = quantities[`combo_${combo.MaCombo}`] || 1;
+    try {
+      await orderItem({
+        maHD: invoice.MaHD,
+        maCombo: combo.MaCombo,
+        soLuong: Number(soLuong),
+        donGia: combo.Gia
+      });
+      // Refresh invoice
+      const res = await getInvoice(selectedTable.MaBan);
+      setInvoice(res.data.data);
+      // Reset quantity
+      setQuantities({ ...quantities, [`combo_${combo.MaCombo}`]: 1 });
+    } catch (err) {
+      alert('Lỗi gọi combo');
     }
   };
 
@@ -172,8 +198,27 @@ const Dashboard = () => {
     if (!invoice || !selectedTable) return;
     try {
       await checkout(invoice.MaHD, selectedTable.MaBan, paymentMethod, voucherCode || null, discountAmount);
-      alert('Thanh toán thành công!');
+      
+      // Prepare receipt data
+      setReceiptData({
+        MaHD: invoice.MaHD,
+        TenBan: selectedTable.TenBan,
+        TenKhachHang: invoice.TenKhachHang,
+        SoDienThoai: invoice.SoDienThoai,
+        ChiTiet: invoice.ChiTiet,
+        TamTinh: invoice.TongTien,
+        GiamGia: discountAmount,
+        Voucher: voucherCode,
+        TongThanhToan: Math.max(0, invoice.TongTien - discountAmount),
+        PhuongThuc: paymentMethod,
+        ThoiGian: new Date().toLocaleString('vi-VN'),
+        TrangThai: 'Thành công'
+      });
+
       setShowCheckoutModal(false);
+      setShowReceipt(true);
+      
+      // Clear current states (will be refreshed by fetchTables anyway)
       setSelectedTable(null);
       setInvoice(null);
       setPaymentMethod('Tiền mặt');
@@ -223,10 +268,7 @@ const Dashboard = () => {
               <hr/>
 
               {selectedTable.TrangThai === 'Trống' ? (
-                <>
-                  <button onClick={handleDatBan} className="btn-primary" style={{marginBottom: '10px'}}>Mở Bàn (Phục vụ)</button>
-                  <button onClick={() => setShowDatBanModal(true)} className="btn-warning">Đặt bàn trước</button>
-                </>
+                <button onClick={() => setShowDatBanModal(true)} className="btn-primary">Đặt bàn và gọi món</button>
               ) : selectedTable.TrangThai === 'Đã đặt' ? (
                 (() => {
                   const datBanInfo = datBans.find(d => d.MaBan === selectedTable.MaBan && d.TrangThai === 'Chờ xác nhận');
@@ -246,6 +288,7 @@ const Dashboard = () => {
               ) : (
                 <div className="order-section">
                   <h3>Hóa đơn (Mã HD: {invoice?.MaHD})</h3>
+                  {invoice?.TenKhachHang && <p><strong>Khách hàng:</strong> {invoice.TenKhachHang} - {invoice.SoDienThoai}</p>}
                   <ul className="invoice-items">
                     {invoice?.ChiTiet?.map((item, idx) => (
                       <li key={idx}>
@@ -263,9 +306,44 @@ const Dashboard = () => {
                   <h3>Thực đơn</h3>
                   <div className="menu-list">
                     {menu.map(mon => (
-                      <div key={mon.MaMon} className="menu-item">
-                        <span>{mon.TenMon} - {mon.Gia.toLocaleString()} đ</span>
-                        <button onClick={() => handleGoiMon(mon)} className="btn-add">+</button>
+                      <div key={mon.MaMon} className={`menu-item ${mon.TrangThai === 'Hết' ? 'out-of-stock' : ''}`}>
+                        <span>{mon.TenMon} - {mon.Gia.toLocaleString()} đ {mon.TrangThai === 'Hết' && <strong style={{color:'red'}}>(Hết)</strong>}</span>
+                        <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            value={quantities[`mon_${mon.MaMon}`] || 1} 
+                            onChange={e => setQuantities({...quantities, [`mon_${mon.MaMon}`]: e.target.value})}
+                            className="input-quantity"
+                            disabled={mon.TrangThai === 'Hết'}
+                          />
+                          <button onClick={() => handleGoiMon(mon)} className="btn-add" disabled={mon.TrangThai === 'Hết'}>Thêm</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <hr style={{margin: '15px 0'}}/>
+                  <h3>Danh sách Combo</h3>
+                  <div className="menu-list">
+                    {combos.map(combo => (
+                      <div key={combo.MaCombo} className="menu-item combo-item">
+                        <div style={{display: 'flex', flexDirection: 'column'}}>
+                          <strong>{combo.TenCombo} - {combo.Gia.toLocaleString()} đ</strong>
+                          <small style={{fontSize: '0.8rem', color: '#666'}}>
+                            ({combo.ChiTiet.map(ct => ct.TenMon).join(', ')})
+                          </small>
+                        </div>
+                        <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            value={quantities[`combo_${combo.MaCombo}`] || 1} 
+                            onChange={e => setQuantities({...quantities, [`combo_${combo.MaCombo}`]: e.target.value})}
+                            className="input-quantity"
+                          />
+                          <button onClick={() => handleGoiCombo(combo)} className="btn-add">Thêm</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -330,11 +408,11 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* DAT BAN MODAL */}
+      {/* DAT BAN MODAL (Merged) */}
       {showDatBanModal && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h2>Đặt Bàn Trước</h2>
+            <h2>Đặt bàn và gọi món</h2>
             <p><strong>Bàn:</strong> {selectedTable?.TenBan}</p>
             
             <div className="form-group">
@@ -346,15 +424,77 @@ const Dashboard = () => {
               <label>Số điện thoại:</label>
               <input type="text" value={formDatBan.SoDienThoai} onChange={e => setFormDatBan({...formDatBan, SoDienThoai: e.target.value})} placeholder="Nhập số điện thoại" />
             </div>
-            
-            <div className="form-group">
-              <label>Thời gian đến:</label>
-              <input type="datetime-local" value={formDatBan.ThoiGianDat} onChange={e => setFormDatBan({...formDatBan, ThoiGianDat: e.target.value})} />
-            </div>
 
             <div className="modal-actions">
               <button onClick={() => setShowDatBanModal(false)} className="btn-logout">Hủy</button>
               <button onClick={handleDatBanSubmit} className="btn-success">Xác nhận</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RECEIPT MODAL */}
+      {showReceipt && receiptData && (
+        <div className="modal-overlay">
+          <div className="receipt-container">
+            <div className="receipt-header">
+              <h2>HÓA ĐƠN THANH TOÁN</h2>
+              <p>Mã hóa đơn: #{receiptData.MaHD}</p>
+              <p>Ngày: {receiptData.ThoiGian}</p>
+            </div>
+            
+            <div className="receipt-info">
+              <p><strong>Bàn:</strong> {receiptData.TenBan}</p>
+              {receiptData.TenKhachHang && <p><strong>Khách hàng:</strong> {receiptData.TenKhachHang}</p>}
+              {receiptData.SoDienThoai && <p><strong>SĐT:</strong> {receiptData.SoDienThoai}</p>}
+              <p><strong>Trạng thái:</strong> <span style={{color:'green', fontWeight:'bold'}}>{receiptData.TrangThai}</span></p>
+            </div>
+            
+            <table className="receipt-table">
+              <thead>
+                <tr>
+                  <th>Tên món</th>
+                  <th>SL</th>
+                  <th>Đơn giá</th>
+                  <th>Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                {receiptData.ChiTiet.map((item, idx) => (
+                  <tr key={idx}>
+                    <td>{item.TenMon}</td>
+                    <td>{item.SoLuong}</td>
+                    <td>{item.DonGia.toLocaleString()}</td>
+                    <td>{(item.SoLuong * item.DonGia).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            
+            <div className="receipt-summary">
+              <div className="summary-row">
+                <span>Tạm tính:</span>
+                <span>{receiptData.TamTinh.toLocaleString()} đ</span>
+              </div>
+              {receiptData.GiamGia > 0 && (
+                <div className="summary-row" style={{color:'red'}}>
+                  <span>Giảm giá ({receiptData.Voucher}):</span>
+                  <span>-{receiptData.GiamGia.toLocaleString()} đ</span>
+                </div>
+              )}
+              <div className="summary-row total-row">
+                <span>TỔNG CỘNG:</span>
+                <span>{receiptData.TongThanhToan.toLocaleString()} VNĐ</span>
+              </div>
+              <div className="summary-row">
+                <span>Phương thức:</span>
+                <span>{receiptData.PhuongThuc}</span>
+              </div>
+            </div>
+            
+            <div className="receipt-footer">
+              <p>Cảm ơn quý khách. Hẹn gặp lại!</p>
+              <button onClick={() => setShowReceipt(false)} className="btn-success">Đóng & Tiếp tục</button>
             </div>
           </div>
         </div>

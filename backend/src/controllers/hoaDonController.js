@@ -22,9 +22,10 @@ const getHoaDonByBan = async (req, res) => {
     const cthdReq = new sql.Request();
     cthdReq.input('maHD', sql.Int, hoadon.MaHD);
     const cthdResult = await cthdReq.query(`
-      SELECT c.*, m.TenMon 
+      SELECT c.*, ISNULL(m.TenMon, cb.TenCombo) as TenMon 
       FROM ChiTietHoaDon c
-      JOIN MonAn m ON c.MaMon = m.MaMon
+      LEFT JOIN MonAn m ON c.MaMon = m.MaMon
+      LEFT JOIN Combo cb ON c.MaCombo = cb.MaCombo
       WHERE c.MaHD = @maHD
     `);
     
@@ -40,17 +41,19 @@ const getHoaDonByBan = async (req, res) => {
 // Đặt bàn / Tạo hóa đơn mới
 const datBan = async (req, res) => {
   try {
-    const { maBan, maNV } = req.body;
+    const { maBan, maNV, TenKhachHang, SoDienThoai } = req.body;
     
     // Tạo hóa đơn
     const request = new sql.Request();
     request.input('maBan', sql.Int, maBan);
     request.input('maNV', sql.Int, maNV);
+    request.input('tenKH', sql.NVarChar, TenKhachHang || null);
+    request.input('sdt', sql.VarChar, SoDienThoai || null);
     
     const result = await request.query(`
-      INSERT INTO HoaDon (NgayLap, TongTien, TrangThai, MaNV, MaBan)
+      INSERT INTO HoaDon (NgayLap, TongTien, TrangThai, MaNV, MaBan, TenKhachHang, SoDienThoai)
       OUTPUT INSERTED.MaHD
-      VALUES (GETDATE(), 0, N'Chưa thanh toán', @maNV, @maBan)
+      VALUES (GETDATE(), 0, N'Chưa thanh toán', @maNV, @maBan, @tenKH, @sdt)
     `);
     
     // Cập nhật trạng thái bàn
@@ -68,33 +71,44 @@ const datBan = async (req, res) => {
 // Gọi món (Thêm vào ChiTietHoaDon và cập nhật tổng tiền)
 const goiMon = async (req, res) => {
   try {
-    const { maHD, maMon, soLuong, donGia } = req.body;
+    const { maHD, maMon, maCombo, soLuong, donGia } = req.body;
     
     const request = new sql.Request();
     request.input('maHD', sql.Int, maHD);
-    request.input('maMon', sql.Int, maMon);
+    if (maMon) request.input('maMon', sql.Int, maMon);
+    if (maCombo) request.input('maCombo', sql.Int, maCombo);
     request.input('soLuong', sql.Int, soLuong);
     request.input('donGia', sql.Decimal(18,2), donGia);
     
-    // Kiểm tra xem món đã có trong hóa đơn chưa
+    // Kiểm tra xem món/combo đã có trong hóa đơn chưa
     const checkReq = new sql.Request();
     checkReq.input('maHD', sql.Int, maHD);
-    checkReq.input('maMon', sql.Int, maMon);
-    const checkRes = await checkReq.query('SELECT * FROM ChiTietHoaDon WHERE MaHD = @maHD AND MaMon = @maMon');
+    let checkQuery = 'SELECT * FROM ChiTietHoaDon WHERE MaHD = @maHD';
+    if (maMon) {
+      checkReq.input('maMon', sql.Int, maMon);
+      checkQuery += ' AND MaMon = @maMon';
+    } else if (maCombo) {
+      checkReq.input('maCombo', sql.Int, maCombo);
+      checkQuery += ' AND MaCombo = @maCombo';
+    }
+
+    const checkRes = await checkReq.query(checkQuery);
     
     if (checkRes.recordset.length > 0) {
       // Đã có -> Cập nhật số lượng
-      await request.query(`
-        UPDATE ChiTietHoaDon 
-        SET SoLuong = SoLuong + @soLuong 
-        WHERE MaHD = @maHD AND MaMon = @maMon
-      `);
+      let updateQuery = 'UPDATE ChiTietHoaDon SET SoLuong = SoLuong + @soLuong WHERE MaHD = @maHD';
+      if (maMon) updateQuery += ' AND MaMon = @maMon';
+      if (maCombo) updateQuery += ' AND MaCombo = @maCombo';
+      await request.query(updateQuery);
     } else {
       // Chưa có -> Thêm mới
-      await request.query(`
-        INSERT INTO ChiTietHoaDon (MaHD, MaMon, SoLuong, DonGia)
-        VALUES (@maHD, @maMon, @soLuong, @donGia)
-      `);
+      let insertQuery = '';
+      if (maMon) {
+        insertQuery = 'INSERT INTO ChiTietHoaDon (MaHD, MaMon, SoLuong, DonGia) VALUES (@maHD, @maMon, @soLuong, @donGia)';
+      } else if (maCombo) {
+        insertQuery = 'INSERT INTO ChiTietHoaDon (MaHD, MaCombo, SoLuong, DonGia) VALUES (@maHD, @maCombo, @soLuong, @donGia)';
+      }
+      await request.query(insertQuery);
     }
     
     // Cập nhật tổng tiền hóa đơn
@@ -151,7 +165,7 @@ const getAllInvoices = async (req, res) => {
   try {
     const request = new sql.Request();
     const result = await request.query(`
-      SELECT h.MaHD, h.NgayLap, h.TongTien, h.PhuongThucThanhToan, b.TenBan, n.HoTen as ThuNgan
+      SELECT h.MaHD, h.NgayLap, h.TongTien, h.PhuongThucThanhToan, h.TenKhachHang, b.TenBan, n.HoTen as ThuNgan
       FROM HoaDon h
       JOIN Ban b ON h.MaBan = b.MaBan
       LEFT JOIN NhanVien n ON h.MaNV = n.MaNV

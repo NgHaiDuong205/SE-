@@ -80,9 +80,24 @@ const Admin = () => {
   };
 
   const handleDeleteMenu = async (id) => {
-    if (window.confirm('Ngừng bán món này?')) {
-      await deleteMenuItem(id);
+    try {
+      console.log('Sending delete request for ID:', id);
+      const response = await deleteMenuItem(id);
+      console.log('Delete response:', response.data);
+      alert('Hệ thống: ' + response.data.message);
       fetchData();
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Lỗi khi ngừng bán: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleRestoreMenu = async (m) => {
+    try {
+      await updateMenuItem(m.MaMon, { ...m, TrangThai: 'Còn' });
+      fetchData();
+    } catch (err) {
+      alert('Lỗi khi mở bán lại');
     }
   };
 
@@ -123,9 +138,14 @@ const Admin = () => {
 
   const handleLockUser = async (id, currentStatus) => {
     const newStatus = currentStatus === 'Hoạt động' ? 'Ngừng hoạt động' : 'Hoạt động';
-    if (window.confirm(`Bạn muốn ${newStatus === 'Ngừng hoạt động' ? 'khóa' : 'mở khóa'} tài khoản này?`)) {
-      await lockUser(id, newStatus);
+    try {
+      console.log('Sending lock/unlock request for user ID:', id, 'New status:', newStatus);
+      const response = await lockUser(id, newStatus);
+      alert('Hệ thống: ' + (response.data.message || 'Thành công'));
       fetchData();
+    } catch (err) {
+      console.error('Lock user error:', err);
+      alert('Lỗi khi thao tác tài khoản: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -152,7 +172,7 @@ const Admin = () => {
       TenCombo: c.TenCombo,
       Gia: c.Gia,
       TrangThai: c.TrangThai,
-      ChiTiet: c.ChiTiet.map(item => item.MaMon)
+      ChiTiet: c.ChiTiet.map(item => Number(item.MaMon))
     });
   };
 
@@ -162,16 +182,34 @@ const Admin = () => {
   };
 
   const handleDeleteCombo = async (id) => {
-    if (window.confirm('Ngừng bán combo này?')) {
-      await deleteCombo(id);
+    try {
+      console.log('Sending delete combo request for ID:', id);
+      const response = await deleteCombo(id);
+      alert('Hệ thống: ' + response.data.message);
       fetchData();
+    } catch (err) {
+      console.error('Delete combo error:', err);
+      alert('Lỗi khi ngừng bán combo: ' + (err.response?.data?.message || err.message));
     }
   };
 
-  const toggleComboItem = (maMon) => {
+  const handleRestoreCombo = async (c) => {
+    try {
+      // Normalize ChiTiet to IDs only
+      const chiTietIds = c.ChiTiet.map(item => Number(item.MaMon));
+      await updateCombo(c.MaCombo, { ...c, TrangThai: 'Hoạt động', ChiTiet: chiTietIds });
+      fetchData();
+    } catch (err) {
+      alert('Lỗi khi mở bán lại combo');
+    }
+  };
+
+
+  const toggleComboItem = (id) => {
+    const maMon = Number(id);
     const current = [...comboForm.ChiTiet];
     if (current.includes(maMon)) {
-      setComboForm({ ...comboForm, ChiTiet: current.filter(id => id !== maMon) });
+      setComboForm({ ...comboForm, ChiTiet: current.filter(item => item !== maMon) });
     } else {
       setComboForm({ ...comboForm, ChiTiet: [...current, maMon] });
     }
@@ -223,14 +261,29 @@ const Admin = () => {
             <div className="table-section">
               <h2>Danh sách Thực Đơn</h2>
               <table className="data-table">
-                <thead><tr><th>Tên món</th><th>Mô tả</th><th>Giá</th><th>Thao tác</th></tr></thead>
+                <thead><tr><th>Tên món</th><th>Mô tả</th><th>Giá</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
                 <tbody>
                   {menu.map(m => (
                     <tr key={m.MaMon}>
                       <td>{m.TenMon}</td><td>{m.MoTa}</td><td>{m.Gia.toLocaleString()} VNĐ</td>
+                      <td style={{color: m.TrangThai === 'Ngừng bán' ? 'red' : m.TrangThai === 'Hết' ? 'orange' : 'green', fontWeight:'bold'}}>{m.TrangThai}</td>
                       <td>
                         <button onClick={() => handleEditMenu(m)} className="btn-edit" style={{marginRight: '5px'}}>Sửa</button>
-                        <button onClick={() => handleDeleteMenu(m.MaMon)} className="btn-danger">Ngừng bán</button>
+                        {m.TrangThai === 'Ngừng bán' ? (
+                          <button onClick={() => handleRestoreMenu(m)} className="btn-success">Mở bán lại</button>
+                        ) : (
+                          <button 
+                            onClick={() => {
+                              if (window.confirm('Ngừng bán món này?')) {
+                                console.log('Confirm Ngừng bán ID:', m.MaMon);
+                                handleDeleteMenu(m.MaMon);
+                              }
+                            }} 
+                            className="btn-danger"
+                          >
+                            Ngừng bán
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -260,7 +313,7 @@ const Admin = () => {
                   <h4>Chọn các món trong Combo:</h4>
                   {menu.map(m => (
                     <label key={m.MaMon} style={{display:'block'}}>
-                      <input type="checkbox" checked={comboForm.ChiTiet.includes(m.MaMon)} onChange={() => toggleComboItem(m.MaMon)} />
+                      <input type="checkbox" checked={comboForm.ChiTiet.includes(Number(m.MaMon))} onChange={() => toggleComboItem(m.MaMon)} />
                       {m.TenMon}
                     </label>
                   ))}
@@ -275,16 +328,31 @@ const Admin = () => {
             <div className="table-section">
               <h2>Danh sách Combo</h2>
               <table className="data-table">
-                <thead><tr><th>Tên Combo</th><th>Các món gồm có</th><th>Giá Combo</th><th>Thao tác</th></tr></thead>
+                <thead><tr><th>Tên Combo</th><th>Các món gồm có</th><th>Giá Combo</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
                 <tbody>
                   {combos.map(c => (
                     <tr key={c.MaCombo}>
                       <td>{c.TenCombo}</td>
                       <td>{c.ChiTiet.map(ct => ct.TenMon).join(', ')}</td>
                       <td>{c.Gia.toLocaleString()} VNĐ</td>
+                      <td style={{color: c.TrangThai === 'Ngừng hoạt động' ? 'red' : 'green', fontWeight:'bold'}}>{c.TrangThai}</td>
                       <td>
                         <button onClick={() => handleEditCombo(c)} className="btn-edit" style={{marginRight: '5px'}}>Sửa</button>
-                        <button onClick={() => handleDeleteCombo(c.MaCombo)} className="btn-danger">Ngừng bán</button>
+                        {c.TrangThai === 'Ngừng hoạt động' ? (
+                          <button onClick={() => handleRestoreCombo(c)} className="btn-success">Mở bán lại</button>
+                        ) : (
+                          <button 
+                            onClick={() => {
+                              if (window.confirm('Ngừng bán combo này?')) {
+                                console.log('Confirm Ngừng bán Combo ID:', c.MaCombo);
+                                handleDeleteCombo(c.MaCombo);
+                              }
+                            }} 
+                            className="btn-danger"
+                          >
+                            Ngừng bán
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -327,7 +395,14 @@ const Admin = () => {
                       <td style={{color: u.TrangThai === 'Hoạt động' ? 'green' : 'red'}}>{u.TrangThai}</td>
                       <td>
                         <button onClick={() => handleEditUser(u)} className="btn-edit" style={{marginRight: '5px'}}>Sửa</button>
-                        <button onClick={() => handleLockUser(u.MaTK, u.TrangThai)} className="btn-danger">
+                        <button 
+                          onClick={() => {
+                            if (window.confirm(`Xác nhận ${u.TrangThai === 'Hoạt động' ? 'Khóa' : 'Mở'} tài khoản này?`)) {
+                              handleLockUser(u.MaTK, u.TrangThai);
+                            }
+                          }} 
+                          className="btn-danger"
+                        >
                           {u.TrangThai === 'Hoạt động' ? 'Khóa TK' : 'Mở Khóa'}
                         </button>
                       </td>
@@ -350,7 +425,7 @@ const Admin = () => {
               </label>
             </div>
             <table className="data-table" style={{marginTop:'15px'}}>
-              <thead><tr><th>Mã HD</th><th>Bàn</th><th>Thu Ngân</th><th>Giờ Lập</th><th>Phương Thức</th><th>Tổng Tiền</th></tr></thead>
+              <thead><tr><th>Mã HD</th><th>Bàn</th><th>Khách hàng</th><th>Thu Ngân</th><th>Giờ Lập</th><th>Phương Thức</th><th>Tổng Tiền</th></tr></thead>
               <tbody>
                 {invoices
                   .filter(inv => {
@@ -362,6 +437,7 @@ const Admin = () => {
                   <tr key={inv.MaHD}>
                     <td>#{inv.MaHD}</td>
                     <td>{inv.TenBan}</td>
+                    <td>{inv.TenKhachHang || 'Vãng lai'}</td>
                     <td>{inv.ThuNgan || 'Không rõ'}</td>
                     <td>{new Date(inv.NgayLap).toLocaleString('vi-VN')}</td>
                     <td>{inv.PhuongThucThanhToan || 'Tiền mặt'}</td>

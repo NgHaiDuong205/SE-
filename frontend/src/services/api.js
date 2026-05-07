@@ -21,7 +21,7 @@ export const updateMenuItem = (id, data) => api.put(`/monan/${id}`, data);
 export const deleteMenuItem = (id) => api.delete(`/monan/${id}`);
 export const getInvoice = (maBan) => api.get(`/hoadon/ban/${maBan}`);
 export const getAllInvoices = () => api.get('/hoadon/all');
-export const bookTable = (maBan, maNV) => api.post('/hoadon/datban', { maBan, maNV });
+export const bookTable = (data) => api.post('/hoadon/datban', data);
 export const orderItem = (data) => api.post('/hoadon/goimon', data);
 export const checkout = (maHD, maBan, phuongThuc, maVoucher = null, tienGiam = 0) => api.post('/hoadon/thanhtoan', { maHD, maBan, phuongThuc, maVoucher, tienGiam });
 export const checkVoucher = (maVoucher, tongTien) => api.post('/hoadon/check-voucher', { maVoucher, tongTien });

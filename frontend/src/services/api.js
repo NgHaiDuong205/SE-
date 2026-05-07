@@ -23,6 +23,8 @@ export const getInvoice = (maBan) => api.get(`/hoadon/ban/${maBan}`);
 export const getAllInvoices = () => api.get('/hoadon/all');
 export const bookTable = (data) => api.post('/hoadon/datban', data);
 export const orderItem = (data) => api.post('/hoadon/goimon', data);
+export const removeItemFromInvoice = (id, maHD) => api.post('/hoadon/xoa-mon', { id, maHD });
+export const decreaseItemQuantity = (id, maHD) => api.post('/hoadon/giam-so-luong', { id, maHD });
 export const checkout = (maHD, maBan, phuongThuc, maVoucher = null, tienGiam = 0) => api.post('/hoadon/thanhtoan', { maHD, maBan, phuongThuc, maVoucher, tienGiam });
 export const checkVoucher = (maVoucher, tongTien) => api.post('/hoadon/check-voucher', { maVoucher, tongTien });
 export const getUsers = () => api.get('/auth/users');

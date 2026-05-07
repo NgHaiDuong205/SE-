@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTables, bookTable, getInvoice, orderItem, getMenu, getCombos, checkout, updateTableStatus, getAllDatBan, createDatBan, updateTrangThaiDatBan, checkVoucher } from '../services/api';
+import { getTables, bookTable, getInvoice, orderItem, getMenu, getCombos, checkout, updateTableStatus, getAllDatBan, createDatBan, updateTrangThaiDatBan, checkVoucher, removeItemFromInvoice, decreaseItemQuantity } from '../services/api';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -179,6 +179,30 @@ const Dashboard = () => {
     }
   };
 
+  const handleRemoveItem = async (itemId) => {
+    if (!invoice) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa hẳn món này khỏi hóa đơn?')) return;
+    
+    try {
+      await removeItemFromInvoice(itemId, invoice.MaHD);
+      const res = await getInvoice(selectedTable.MaBan);
+      setInvoice(res.data.data);
+    } catch (err) {
+      alert('Lỗi khi xóa món');
+    }
+  };
+
+  const handleDecreaseQuantity = async (itemId) => {
+    if (!invoice) return;
+    try {
+      await decreaseItemQuantity(itemId, invoice.MaHD);
+      const res = await getInvoice(selectedTable.MaBan);
+      setInvoice(res.data.data);
+    } catch (err) {
+      alert('Lỗi khi giảm số lượng');
+    }
+  };
+
   const handleCheckVoucher = async () => {
     if (!voucherCode.trim()) {
       alert('Vui lòng nhập mã voucher');
@@ -292,7 +316,48 @@ const Dashboard = () => {
                   <ul className="invoice-items">
                     {invoice?.ChiTiet?.map((item, idx) => (
                       <li key={idx}>
-                        <span>{item.TenMon} x {item.SoLuong}</span>
+                        <div style={{display: 'flex', gap: '5px', alignItems: 'center'}}>
+                          <button 
+                            onClick={() => handleDecreaseQuantity(item.ID)} 
+                            style={{
+                              background: '#2196F3', 
+                              color: 'white', 
+                              border: 'none', 
+                              borderRadius: '50%', 
+                              width: '24px', 
+                              height: '24px', 
+                              cursor: 'pointer',
+                              fontSize: '16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              paddingBottom: '2px'
+                            }}
+                            title="Giảm 1"
+                          >
+                            -
+                          </button>
+                          <button 
+                            onClick={() => handleRemoveItem(item.ID)} 
+                            style={{
+                              background: '#ff4444', 
+                              color: 'white', 
+                              border: 'none', 
+                              borderRadius: '50%', 
+                              width: '24px', 
+                              height: '24px', 
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            title="Xóa hẳn"
+                          >
+                            X
+                          </button>
+                          <span>{item.TenMon} x {item.SoLuong}</span>
+                        </div>
                         <span>{(item.SoLuong * item.DonGia).toLocaleString()} đ</span>
                       </li>
                     ))}

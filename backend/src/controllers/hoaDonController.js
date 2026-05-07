@@ -217,10 +217,77 @@ const checkVoucher = async (req, res) => {
   }
 };
 
+// Xóa món khỏi hóa đơn
+const xoaMon = async (req, res) => {
+  try {
+    const { id, maHD } = req.body; // id là ID của ChiTietHoaDon
+    
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    await request.query(`DELETE FROM ChiTietHoaDon WHERE ID = @id`);
+    
+    // Cập nhật lại tổng tiền hóa đơn
+    const updateHD = new sql.Request();
+    updateHD.input('maHD', sql.Int, maHD);
+    await updateHD.query(`
+      UPDATE HoaDon 
+      SET TongTien = ISNULL((SELECT SUM(SoLuong * DonGia) FROM ChiTietHoaDon WHERE MaHD = @maHD), 0)
+      WHERE MaHD = @maHD
+    `);
+    
+    res.json({ message: 'Xóa món thành công' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
+// Giảm số lượng hoặc xóa món khỏi hóa đơn
+const giamSoLuong = async (req, res) => {
+  try {
+    const { id, maHD } = req.body; // id là ID của ChiTietHoaDon
+    
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    
+    // Kiểm tra số lượng hiện tại
+    const checkRes = await request.query(`SELECT SoLuong FROM ChiTietHoaDon WHERE ID = @id`);
+    if (checkRes.recordset.length === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy món trong hóa đơn' });
+    }
+    
+    const hienTai = checkRes.recordset[0].SoLuong;
+    
+    if (hienTai > 1) {
+      // Giảm 1
+      await request.query(`UPDATE ChiTietHoaDon SET SoLuong = SoLuong - 1 WHERE ID = @id`);
+    } else {
+      // Xóa hẳn
+      await request.query(`DELETE FROM ChiTietHoaDon WHERE ID = @id`);
+    }
+    
+    // Cập nhật lại tổng tiền hóa đơn
+    const updateHD = new sql.Request();
+    updateHD.input('maHD', sql.Int, maHD);
+    await updateHD.query(`
+      UPDATE HoaDon 
+      SET TongTien = ISNULL((SELECT SUM(SoLuong * DonGia) FROM ChiTietHoaDon WHERE MaHD = @maHD), 0)
+      WHERE MaHD = @maHD
+    `);
+    
+    res.json({ message: 'Cập nhật số lượng thành công' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
 module.exports = {
   getHoaDonByBan,
   datBan,
   goiMon,
+  xoaMon,
+  giamSoLuong,
   thanhToan,
   getAllInvoices,
   checkVoucher

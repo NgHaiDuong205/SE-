@@ -350,21 +350,20 @@ const Admin = () => {
               </label>
             </div>
             <table className="data-table" style={{marginTop:'15px'}}>
-              <thead><tr><th>Mã HD</th><th>Bàn</th><th>Thu Ngân</th><th>Giờ Vào</th><th>Giờ Ra</th><th>Phương Thức</th><th>Tổng Tiền</th></tr></thead>
+              <thead><tr><th>Mã HD</th><th>Bàn</th><th>Thu Ngân</th><th>Giờ Lập</th><th>Phương Thức</th><th>Tổng Tiền</th></tr></thead>
               <tbody>
                 {invoices
                   .filter(inv => {
                     if (!filterToday) return true;
                     const today = new Date().toISOString().split('T')[0];
-                    return inv.ThoiGianRa && inv.ThoiGianRa.startsWith(today);
+                    return inv.NgayLap && inv.NgayLap.startsWith(today);
                   })
                   .map(inv => (
                   <tr key={inv.MaHD}>
                     <td>#{inv.MaHD}</td>
                     <td>{inv.TenBan}</td>
                     <td>{inv.ThuNgan || 'Không rõ'}</td>
-                    <td>{new Date(inv.ThoiGianVao).toLocaleString('vi-VN')}</td>
-                    <td>{new Date(inv.ThoiGianRa).toLocaleString('vi-VN')}</td>
+                    <td>{new Date(inv.NgayLap).toLocaleString('vi-VN')}</td>
                     <td>{inv.PhuongThucThanhToan || 'Tiền mặt'}</td>
                     <td style={{fontWeight:'bold', color:'green'}}>{inv.TongTien.toLocaleString()} đ</td>
                   </tr>

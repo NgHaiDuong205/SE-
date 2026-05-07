@@ -116,14 +116,24 @@ const goiMon = async (req, res) => {
 // Thanh toán
 const thanhToan = async (req, res) => {
   try {
-    const { maHD, maBan, phuongThuc } = req.body;
+    const { maHD, maBan, phuongThuc, maVoucher, tienGiam } = req.body;
     const pt = phuongThuc || 'Tiền mặt';
     
     // Cập nhật hóa đơn
     const reqHD = new sql.Request();
     reqHD.input('maHD', sql.Int, maHD);
     reqHD.input('phuongThuc', sql.NVarChar, pt);
-    await reqHD.query(`UPDATE HoaDon SET TrangThai = N'Đã thanh toán', PhuongThucThanhToan = @phuongThuc, ThoiGianRa = GETDATE() WHERE MaHD = @maHD`);
+    
+    if (tienGiam && maVoucher) {
+      reqHD.input('tienGiam', sql.Decimal(18,2), tienGiam);
+      await reqHD.query(`UPDATE HoaDon SET TrangThai = N'Đã thanh toán', PhuongThucThanhToan = @phuongThuc, TongTien = TongTien - @tienGiam WHERE MaHD = @maHD`);
+      
+      const reqVoucher = new sql.Request();
+      reqVoucher.input('maVoucher', sql.VarChar, maVoucher);
+      await reqVoucher.query(`UPDATE Voucher SET SoLuong = SoLuong - 1 WHERE MaVoucher = @maVoucher`);
+    } else {
+      await reqHD.query(`UPDATE HoaDon SET TrangThai = N'Đã thanh toán', PhuongThucThanhToan = @phuongThuc WHERE MaHD = @maHD`);
+    }
     
     // Giải phóng bàn
     const reqBan = new sql.Request();
@@ -141,14 +151,52 @@ const getAllInvoices = async (req, res) => {
   try {
     const request = new sql.Request();
     const result = await request.query(`
-      SELECT h.MaHD, h.ThoiGianVao, h.ThoiGianRa, h.TongTien, h.PhuongThucThanhToan, b.TenBan, n.HoTen as ThuNgan
+      SELECT h.MaHD, h.NgayLap, h.TongTien, h.PhuongThucThanhToan, b.TenBan, n.HoTen as ThuNgan
       FROM HoaDon h
       JOIN Ban b ON h.MaBan = b.MaBan
       LEFT JOIN NhanVien n ON h.MaNV = n.MaNV
       WHERE h.TrangThai = N'Đã thanh toán'
-      ORDER BY h.ThoiGianRa DESC
+      ORDER BY h.NgayLap DESC
     `);
     res.json(result.recordset);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
+// Check Voucher
+const checkVoucher = async (req, res) => {
+  try {
+    const { maVoucher, tongTien } = req.body;
+    
+    if (!maVoucher) return res.status(400).json({ message: 'Vui lòng nhập mã voucher' });
+
+    const request = new sql.Request();
+    request.input('maVoucher', sql.VarChar, maVoucher);
+    const result = await request.query('SELECT * FROM Voucher WHERE MaVoucher = @maVoucher');
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Mã voucher không tồn tại' });
+    }
+    
+    const voucher = result.recordset[0];
+    
+    if (voucher.TrangThai !== 'Hoạt động' || voucher.SoLuong <= 0) {
+      return res.status(400).json({ message: 'Mã voucher đã hết hạn hoặc hết lượt sử dụng' });
+    }
+    
+    if (new Date(voucher.NgayHetHan) < new Date()) {
+      return res.status(400).json({ message: 'Mã voucher đã quá hạn sử dụng' });
+    }
+    
+    // Tính tiền giảm
+    let tienGiam = (tongTien * voucher.PhanTramGiam) / 100;
+    if (voucher.GiamToiDa && tienGiam > voucher.GiamToiDa) {
+      tienGiam = voucher.GiamToiDa;
+    }
+    
+    res.json({ message: 'Áp dụng mã thành công', tienGiam, phanTram: voucher.PhanTramGiam });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Lỗi server' });
@@ -160,5 +208,6 @@ module.exports = {
   datBan,
   goiMon,
   thanhToan,
-  getAllInvoices
+  getAllInvoices,
+  checkVoucher
 };

@@ -349,12 +349,6 @@ const Dashboard = () => {
           Sơ đồ bàn (Phục vụ)
         </button>
         <button 
-          className={activeTab === 'booking' ? 'active' : ''} 
-          onClick={() => setActiveTab('booking')}
-        >
-          Quản lý Đặt bàn
-        </button>
-        <button 
           className={activeTab === 'payment' ? 'active' : ''} 
           onClick={() => { setActiveTab('payment'); fetchTables(); }}
         >
@@ -522,73 +516,29 @@ const Dashboard = () => {
           </>
         )}
 
-        {activeTab === 'booking' && (
-          <div className="table-section reservation-list">
-            <h2>Danh sách Đặt bàn (Chờ xác nhận)</h2>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Khách hàng</th>
-                  <th>Số điện thoại</th>
-                  <th>Bàn</th>
-                  <th>Thời gian đặt</th>
-                  <th>Nhân viên nhận</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {datBans.filter(d => d.TrangThai === 'Chờ xác nhận').map(d => (
-                  <tr key={d.MaDatBan}>
-                    <td>{d.TenKhachHang}</td>
-                    <td>{d.SoDienThoai}</td>
-                    <td>{d.TenBan}</td>
-                    <td>{new Date(d.ThoiGianDat).toLocaleString('vi-VN')}</td>
-                    <td>{d.TenNhanVien}</td>
-                    <td>
-                      <button onClick={() => handleNhanBan(d.MaDatBan)} className="btn-success btn-small">Nhận bàn</button>
-                      <button onClick={() => handleHuyDatBan(d.MaDatBan)} className="btn-logout btn-small">Hủy</button>
-                    </td>
-                  </tr>
-                ))}
-                {datBans.filter(d => d.TrangThai === 'Chờ xác nhận').length === 0 && (
-                  <tr><td colSpan="6" style={{textAlign:'center'}}>Không có lịch đặt bàn nào đang chờ</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
         {activeTab === 'payment' && (
-          <div className="table-section history-list">
-            <h2>Danh sách Bàn đang phục vụ (Chờ thanh toán)</h2>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Tên Bàn</th>
-                  <th>Trạng thái</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tables.filter(t => t.TrangThai === 'Đang phục vụ').map(t => (
-                  <tr key={t.MaBan}>
-                    <td>{t.TenBan}</td>
-                    <td style={{color: 'red', fontWeight: 'bold'}}>{t.TrangThai}</td>
-                    <td>
-                      <button 
-                        onClick={() => handleQuickCheckout(t)} 
-                        className="btn-success btn-small"
-                      >
-                        Thanh toán Ngay
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {tables.filter(t => t.TrangThai === 'Đang phục vụ').length === 0 && (
-                  <tr><td colSpan="3" style={{textAlign:'center'}}>Hiện không có bàn nào đang phục vụ</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div className="table-section">
+            <h2>Chọn bàn để thanh toán</h2>
+            <p style={{marginBottom: '20px', color: '#666'}}>Dưới đây là các bàn đang có khách. Chọn một bàn để tiến hành thanh toán ngay lập tức.</p>
+            <div className="table-grid">
+              {tables.filter(t => t.TrangThai === 'Đang phục vụ').map(t => (
+                <div 
+                  key={t.MaBan} 
+                  className="table-card occupied"
+                  onClick={() => handleQuickCheckout(t)}
+                  style={{position: 'relative'}}
+                >
+                  <h3>{t.TenBan}</h3>
+                  <p>{t.TrangThai}</p>
+                  <button className="btn-success btn-small" style={{marginTop: '10px', width: '100%'}}>Thanh toán</button>
+                </div>
+              ))}
+              {tables.filter(t => t.TrangThai === 'Đang phục vụ').length === 0 && (
+                <div style={{gridColumn: '1/-1', textAlign: 'center', padding: '50px', background: '#f9f9f9', borderRadius: '8px'}}>
+                  <p>Hiện không có bàn nào đang phục vụ.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

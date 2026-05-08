@@ -10,6 +10,8 @@ const Dashboard = () => {
   const [combos, setCombos] = useState([]);
   const [invoice, setInvoice] = useState(null);
   const [datBans, setDatBans] = useState([]);
+  const [invoices, setInvoices] = useState([]); // Keep this for potential history view elsewhere
+  const [activeTab, setActiveTab] = useState('service'); // 'service', 'booking', 'payment'
   const [quantities, setQuantities] = useState({}); // { itemKey: quantity }
 
   
@@ -69,12 +71,22 @@ const Dashboard = () => {
     }
   };
 
+  const fetchAllInvoices = async () => {
+    try {
+      const res = await getAllInvoices();
+      setInvoices(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchTables();
     fetchMenu();
     fetchCombos();
     fetchDatBans();
-  }, []);
+    if (activeTab === 'history') fetchAllInvoices();
+  }, [activeTab]);
 
   const handleTableClick = async (table) => {
     setSelectedTable(table);
@@ -258,6 +270,25 @@ const Dashboard = () => {
     }
   };
 
+  const handleQuickCheckout = async (table) => {
+    setSelectedTable(table);
+    setActiveTab('service');
+    try {
+      const res = await getInvoice(table.MaBan);
+      if (res.data.data) {
+        setInvoice(res.data.data);
+        if (res.data.data.ChiTiet && res.data.data.ChiTiet.length > 0) {
+          setShowCheckoutModal(true);
+        } else {
+          alert('Hóa đơn của bàn này trống, không thể thanh toán.');
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Không thể tải thông tin hóa đơn');
+    }
+  };
+
   const handleConfirmCheckout = async () => {
     if (!invoice || !selectedTable) return;
     try {
@@ -303,168 +334,263 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
       <header className="header">
-        <h1>Sơ Đồ Bàn - Nhà Hàng</h1>
+        <h1>Nhà Hàng - Khu Vực Phục Vụ</h1>
         <div className="user-info">
-          <span>Xin chào, {user?.HoTen}</span>
+          <span>Xin chào, {user?.HoTen} ({user?.VaiTro})</span>
           <button onClick={handleLogout} className="btn-logout">Đăng xuất</button>
         </div>
       </header>
+
+      <div className="tabs">
+        <button 
+          className={activeTab === 'service' ? 'active' : ''} 
+          onClick={() => setActiveTab('service')}
+        >
+          Sơ đồ bàn (Phục vụ)
+        </button>
+        <button 
+          className={activeTab === 'booking' ? 'active' : ''} 
+          onClick={() => setActiveTab('booking')}
+        >
+          Quản lý Đặt bàn
+        </button>
+        <button 
+          className={activeTab === 'payment' ? 'active' : ''} 
+          onClick={() => { setActiveTab('payment'); fetchTables(); }}
+        >
+          Thanh toán
+        </button>
+      </div>
       
       <div className="main-content">
-        <div className="table-grid">
-          {tables.map(table => (
-            <div 
-              key={table.MaBan} 
-              className={`table-card ${table.TrangThai === 'Trống' ? 'empty' : table.TrangThai === 'Đã đặt' ? 'reserved' : 'occupied'} ${selectedTable?.MaBan === table.MaBan ? 'selected' : ''}`}
-              onClick={() => handleTableClick(table)}
-            >
-              <h3>{table.TenBan}</h3>
-              <p>{table.TrangThai}</p>
+        {activeTab === 'service' && (
+          <>
+            <div className="table-grid">
+              {tables.map(table => (
+                <div 
+                  key={table.MaBan} 
+                  className={`table-card ${table.TrangThai === 'Trống' ? 'empty' : table.TrangThai === 'Đã đặt' ? 'reserved' : 'occupied'} ${selectedTable?.MaBan === table.MaBan ? 'selected' : ''}`}
+                  onClick={() => handleTableClick(table)}
+                >
+                  <h3>{table.TenBan}</h3>
+                  <p>{table.TrangThai}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className="side-panel">
-          {selectedTable ? (
-            <div className="table-details">
-              <h2>{selectedTable.TenBan}</h2>
-              <p style={{margin: '10px 0', fontSize: '1.1rem', fontWeight: 'bold'}}>Trạng thái: {selectedTable.TrangThai}</p>
-              <hr/>
-
-              {selectedTable.TrangThai === 'Trống' ? (
-                <button onClick={() => setShowDatBanModal(true)} className="btn-primary">Đặt bàn và gọi món</button>
-              ) : selectedTable.TrangThai === 'Đã đặt' ? (
-                (() => {
-                  const datBanInfo = datBans.find(d => d.MaBan === selectedTable.MaBan && d.TrangThai === 'Chờ xác nhận');
-                  return datBanInfo ? (
-                    <div className="reservation-details">
-                      <h3>Thông tin đặt bàn</h3>
-                      <p><strong>Khách hàng:</strong> {datBanInfo.TenKhachHang}</p>
-                      <p><strong>SĐT:</strong> {datBanInfo.SoDienThoai}</p>
-                      <p><strong>Thời gian đến:</strong> {new Date(datBanInfo.ThoiGianDat).toLocaleString('vi-VN')}</p>
-                      <p><strong>Người nhận đặt:</strong> {datBanInfo.TenNhanVien}</p>
-                      <hr/>
-                      <button onClick={() => handleNhanBan(datBanInfo.MaDatBan)} className="btn-success" style={{marginBottom: '10px'}}>Khách nhận bàn</button>
-                      <button onClick={() => handleHuyDatBan(datBanInfo.MaDatBan)} className="btn-logout" style={{width: '100%'}}>Hủy đặt bàn</button>
-                    </div>
-                  ) : <p>Đang tải thông tin đặt bàn...</p>;
-                })()
-              ) : (
-                <div className="order-section">
-                  <h3>Hóa đơn (Mã HD: {invoice?.MaHD})</h3>
-                  {invoice?.TenKhachHang && <p><strong>Khách hàng:</strong> {invoice.TenKhachHang} - {invoice.SoDienThoai}</p>}
-                  <ul className="invoice-items">
-                    {invoice?.ChiTiet?.map((item, idx) => (
-                      <li key={idx}>
-                        <div style={{display: 'flex', gap: '5px', alignItems: 'center'}}>
-                          <button 
-                            onClick={() => handleDecreaseQuantity(item.ID)} 
-                            style={{
-                              background: '#2196F3', 
-                              color: 'white', 
-                              border: 'none', 
-                              borderRadius: '50%', 
-                              width: '24px', 
-                              height: '24px', 
-                              cursor: 'pointer',
-                              fontSize: '16px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              paddingBottom: '2px'
-                            }}
-                            title="Giảm 1"
-                          >
-                            -
-                          </button>
-                          <button 
-                            onClick={() => handleRemoveItem(item.ID)} 
-                            style={{
-                              background: '#ff4444', 
-                              color: 'white', 
-                              border: 'none', 
-                              borderRadius: '50%', 
-                              width: '24px', 
-                              height: '24px', 
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                            title="Xóa hẳn"
-                          >
-                            X
-                          </button>
-                          <span>{item.TenMon} x {item.SoLuong}</span>
-                        </div>
-                        <span>{(item.SoLuong * item.DonGia).toLocaleString()} đ</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="total">
-                    <strong>Tổng tiền: {invoice?.TongTien?.toLocaleString() || 0} đ</strong>
-                  </div>
-                  {invoice?.ChiTiet?.length > 0 ? (
-                    <button onClick={() => setShowCheckoutModal(true)} className="btn-success">Thanh toán</button>
-                  ) : (
-                    <button onClick={handleHuyHoaDon} className="btn-logout" style={{width: '100%'}}>Hủy hóa đơn & Trả bàn</button>
-                  )}
-                  
+            <div className="side-panel">
+              {selectedTable ? (
+                <div className="table-details">
+                  <h2>{selectedTable.TenBan}</h2>
+                  <p style={{margin: '10px 0', fontSize: '1.1rem', fontWeight: 'bold'}}>Trạng thái: {selectedTable.TrangThai}</p>
                   <hr/>
-                  <h3>Thực đơn</h3>
-                  <div className="menu-list">
-                    {menu.map(mon => (
-                      <div key={mon.MaMon} className={`menu-item ${mon.TrangThai === 'Hết' ? 'out-of-stock' : ''}`}>
-                        <span>{mon.TenMon} - {mon.Gia.toLocaleString()} đ {mon.TrangThai === 'Hết' && <strong style={{color:'red'}}>(Hết)</strong>}</span>
-                        <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
-                          <input 
-                            type="number" 
-                            min="1" 
-                            value={quantities[`mon_${mon.MaMon}`] || 1} 
-                            onChange={e => setQuantities({...quantities, [`mon_${mon.MaMon}`]: e.target.value})}
-                            className="input-quantity"
-                            disabled={mon.TrangThai === 'Hết'}
-                          />
-                          <button onClick={() => handleGoiMon(mon)} className="btn-add" disabled={mon.TrangThai === 'Hết'}>Thêm</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
 
-                  <hr style={{margin: '15px 0'}}/>
-                  <h3>Danh sách Combo</h3>
-                  <div className="menu-list">
-                    {combos.map(combo => (
-                      <div key={combo.MaCombo} className="menu-item combo-item">
-                        <div style={{display: 'flex', flexDirection: 'column'}}>
-                          <strong>{combo.TenCombo} - {combo.Gia.toLocaleString()} đ</strong>
-                          <small style={{fontSize: '0.8rem', color: '#666'}}>
-                            ({combo.ChiTiet.map(ct => ct.TenMon).join(', ')})
-                          </small>
+                  {selectedTable.TrangThai === 'Trống' ? (
+                    <button onClick={() => setShowDatBanModal(true)} className="btn-primary">Đặt bàn và gọi món</button>
+                  ) : selectedTable.TrangThai === 'Đã đặt' ? (
+                    (() => {
+                      const datBanInfo = datBans.find(d => d.MaBan === selectedTable.MaBan && d.TrangThai === 'Chờ xác nhận');
+                      return datBanInfo ? (
+                        <div className="reservation-details">
+                          <h3>Thông tin đặt bàn</h3>
+                          <p><strong>Khách hàng:</strong> {datBanInfo.TenKhachHang}</p>
+                          <p><strong>SĐT:</strong> {datBanInfo.SoDienThoai}</p>
+                          <p><strong>Thời gian đến:</strong> {new Date(datBanInfo.ThoiGianDat).toLocaleString('vi-VN')}</p>
+                          <p><strong>Người nhận đặt:</strong> {datBanInfo.TenNhanVien}</p>
+                          <hr/>
+                          <button onClick={() => handleNhanBan(datBanInfo.MaDatBan)} className="btn-success" style={{marginBottom: '10px'}}>Khách nhận bàn</button>
+                          <button onClick={() => handleHuyDatBan(datBanInfo.MaDatBan)} className="btn-logout" style={{width: '100%'}}>Hủy đặt bàn</button>
                         </div>
-                        <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
-                          <input 
-                            type="number" 
-                            min="1" 
-                            value={quantities[`combo_${combo.MaCombo}`] || 1} 
-                            onChange={e => setQuantities({...quantities, [`combo_${combo.MaCombo}`]: e.target.value})}
-                            className="input-quantity"
-                          />
-                          <button onClick={() => handleGoiCombo(combo)} className="btn-add">Thêm</button>
-                        </div>
+                      ) : <p>Đang tải thông tin đặt bàn...</p>;
+                    })()
+                  ) : (
+                    <div className="order-section">
+                      <h3>Hóa đơn (Mã HD: {invoice?.MaHD})</h3>
+                      {invoice?.TenKhachHang && <p><strong>Khách hàng:</strong> {invoice.TenKhachHang} - {invoice.SoDienThoai}</p>}
+                      <ul className="invoice-items">
+                        {invoice?.ChiTiet?.map((item, idx) => (
+                          <li key={idx}>
+                            <div style={{display: 'flex', gap: '5px', alignItems: 'center'}}>
+                              <button 
+                                onClick={() => handleDecreaseQuantity(item.ID)} 
+                                style={{
+                                  background: '#2196F3', 
+                                  color: 'white', 
+                                  border: 'none', 
+                                  borderRadius: '50%', 
+                                  width: '24px', 
+                                  height: '24px', 
+                                  cursor: 'pointer',
+                                  fontSize: '16px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  paddingBottom: '2px'
+                                }}
+                                title="Giảm 1"
+                              >
+                                -
+                              </button>
+                              <button 
+                                onClick={() => handleRemoveItem(item.ID)} 
+                                style={{
+                                  background: '#ff4444', 
+                                  color: 'white', 
+                                  border: 'none', 
+                                  borderRadius: '50%', 
+                                  width: '24px', 
+                                  height: '24px', 
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                                title="Xóa hẳn"
+                              >
+                                X
+                              </button>
+                              <span>{item.TenMon} x {item.SoLuong}</span>
+                            </div>
+                            <span>{(item.SoLuong * item.DonGia).toLocaleString()} đ</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="total">
+                        <strong>Tổng tiền: {invoice?.TongTien?.toLocaleString() || 0} đ</strong>
                       </div>
-                    ))}
-                  </div>
+                      {invoice?.ChiTiet?.length > 0 ? (
+                        <button onClick={() => setShowCheckoutModal(true)} className="btn-success">Thanh toán</button>
+                      ) : (
+                        <button onClick={handleHuyHoaDon} className="btn-logout" style={{width: '100%'}}>Hủy hóa đơn & Trả bàn</button>
+                      )}
+                      
+                      <hr/>
+                      <h3>Thực đơn</h3>
+                      <div className="menu-list">
+                        {menu.map(mon => (
+                          <div key={mon.MaMon} className={`menu-item ${mon.TrangThai === 'Hết' ? 'out-of-stock' : ''}`}>
+                            <span>{mon.TenMon} - {mon.Gia.toLocaleString()} đ {mon.TrangThai === 'Hết' && <strong style={{color:'red'}}>(Hết)</strong>}</span>
+                            <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                              <input 
+                                type="number" 
+                                min="1" 
+                                value={quantities[`mon_${mon.MaMon}`] || 1} 
+                                onChange={e => setQuantities({...quantities, [`mon_${mon.MaMon}`]: e.target.value})}
+                                className="input-quantity"
+                                disabled={mon.TrangThai === 'Hết'}
+                              />
+                              <button onClick={() => handleGoiMon(mon)} className="btn-add" disabled={mon.TrangThai === 'Hết'}>Thêm</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <hr style={{margin: '15px 0'}}/>
+                      <h3>Danh sách Combo</h3>
+                      <div className="menu-list">
+                        {combos.map(combo => (
+                          <div key={combo.MaCombo} className="menu-item combo-item">
+                            <div style={{display: 'flex', flexDirection: 'column'}}>
+                              <strong>{combo.TenCombo} - {combo.Gia.toLocaleString()} đ</strong>
+                              <small style={{fontSize: '0.8rem', color: '#666'}}>
+                                ({combo.ChiTiet.map(ct => ct.TenMon).join(', ')})
+                              </small>
+                            </div>
+                            <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                              <input 
+                                type="number" 
+                                min="1" 
+                                value={quantities[`combo_${combo.MaCombo}`] || 1} 
+                                onChange={e => setQuantities({...quantities, [`combo_${combo.MaCombo}`]: e.target.value})}
+                                className="input-quantity"
+                              />
+                              <button onClick={() => handleGoiCombo(combo)} className="btn-add">Thêm</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <p>Chọn một bàn để xem chi tiết</p>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="empty-state">
-              <p>Chọn một bàn để xem chi tiết</p>
-            </div>
-          )}
-        </div>
+          </>
+        )}
+
+        {activeTab === 'booking' && (
+          <div className="table-section reservation-list">
+            <h2>Danh sách Đặt bàn (Chờ xác nhận)</h2>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Khách hàng</th>
+                  <th>Số điện thoại</th>
+                  <th>Bàn</th>
+                  <th>Thời gian đặt</th>
+                  <th>Nhân viên nhận</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {datBans.filter(d => d.TrangThai === 'Chờ xác nhận').map(d => (
+                  <tr key={d.MaDatBan}>
+                    <td>{d.TenKhachHang}</td>
+                    <td>{d.SoDienThoai}</td>
+                    <td>{d.TenBan}</td>
+                    <td>{new Date(d.ThoiGianDat).toLocaleString('vi-VN')}</td>
+                    <td>{d.TenNhanVien}</td>
+                    <td>
+                      <button onClick={() => handleNhanBan(d.MaDatBan)} className="btn-success btn-small">Nhận bàn</button>
+                      <button onClick={() => handleHuyDatBan(d.MaDatBan)} className="btn-logout btn-small">Hủy</button>
+                    </td>
+                  </tr>
+                ))}
+                {datBans.filter(d => d.TrangThai === 'Chờ xác nhận').length === 0 && (
+                  <tr><td colSpan="6" style={{textAlign:'center'}}>Không có lịch đặt bàn nào đang chờ</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeTab === 'payment' && (
+          <div className="table-section history-list">
+            <h2>Danh sách Bàn đang phục vụ (Chờ thanh toán)</h2>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Tên Bàn</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tables.filter(t => t.TrangThai === 'Đang phục vụ').map(t => (
+                  <tr key={t.MaBan}>
+                    <td>{t.TenBan}</td>
+                    <td style={{color: 'red', fontWeight: 'bold'}}>{t.TrangThai}</td>
+                    <td>
+                      <button 
+                        onClick={() => handleQuickCheckout(t)} 
+                        className="btn-success btn-small"
+                      >
+                        Thanh toán Ngay
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {tables.filter(t => t.TrangThai === 'Đang phục vụ').length === 0 && (
+                  <tr><td colSpan="3" style={{textAlign:'center'}}>Hiện không có bàn nào đang phục vụ</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* CHECKOUT MODAL */}

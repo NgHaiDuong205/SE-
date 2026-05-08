@@ -73,6 +73,13 @@ const goiMon = async (req, res) => {
   try {
     const { maHD, maMon, maCombo, soLuong, donGia } = req.body;
     
+    if (Number(soLuong) <= 0) {
+      return res.status(400).json({ message: 'Số lượng phải lớn hơn 0' });
+    }
+    if (Number(donGia) < 0) {
+      return res.status(400).json({ message: 'Đơn giá không được âm' });
+    }
+    
     const request = new sql.Request();
     request.input('maHD', sql.Int, maHD);
     if (maMon) request.input('maMon', sql.Int, maMon);
@@ -131,8 +138,20 @@ const goiMon = async (req, res) => {
 const thanhToan = async (req, res) => {
   try {
     const { maHD, maBan, phuongThuc, maVoucher, tienGiam } = req.body;
+    
+    if (tienGiam && Number(tienGiam) < 0) {
+      return res.status(400).json({ message: 'Số tiền giảm không được âm' });
+    }
     const pt = phuongThuc || 'Tiền mặt';
     
+    // Kiểm tra xem hóa đơn có món nào không
+    const checkItems = new sql.Request();
+    checkItems.input('maHD', sql.Int, maHD);
+    const itemsResult = await checkItems.query('SELECT COUNT(*) as count FROM ChiTietHoaDon WHERE MaHD = @maHD');
+    if (itemsResult.recordset[0].count === 0) {
+      return res.status(400).json({ message: 'Không thể thanh toán hóa đơn không có món ăn' });
+    }
+
     // Cập nhật hóa đơn
     const reqHD = new sql.Request();
     reqHD.input('maHD', sql.Int, maHD);
@@ -282,6 +301,32 @@ const giamSoLuong = async (req, res) => {
   }
 };
 
+const cancelInvoice = async (req, res) => {
+  try {
+    const { maHD, maBan } = req.body;
+    
+    // Xóa chi tiết hóa đơn
+    const reqCT = new sql.Request();
+    reqCT.input('maHD', sql.Int, maHD);
+    await reqCT.query('DELETE FROM ChiTietHoaDon WHERE MaHD = @maHD');
+    
+    // Xóa hóa đơn
+    const reqHD = new sql.Request();
+    reqHD.input('maHD', sql.Int, maHD);
+    await reqHD.query('DELETE FROM HoaDon WHERE MaHD = @maHD');
+    
+    // Giải phóng bàn
+    const reqBan = new sql.Request();
+    reqBan.input('maBan', sql.Int, maBan);
+    await reqBan.query("UPDATE Ban SET TrangThai = N'Trống' WHERE MaBan = @maBan");
+    
+    res.json({ message: 'Hủy hóa đơn và giải phóng bàn thành công' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
 module.exports = {
   getHoaDonByBan,
   datBan,
@@ -290,5 +335,6 @@ module.exports = {
   giamSoLuong,
   thanhToan,
   getAllInvoices,
-  checkVoucher
+  checkVoucher,
+  cancelInvoice
 };

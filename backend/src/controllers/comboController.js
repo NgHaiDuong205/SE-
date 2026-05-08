@@ -31,6 +31,17 @@ const createCombo = async (req, res) => {
     await transaction.begin();
     try {
       const { TenCombo, Gia, ChiTiet } = req.body;
+      
+      if (!ChiTiet || ChiTiet.length === 0) {
+        await transaction.rollback();
+        return res.status(400).json({ message: 'Combo phải có ít nhất một món ăn' });
+      }
+
+      if (Number(Gia) < 0) {
+        await transaction.rollback();
+        return res.status(400).json({ message: 'Giá combo không được âm' });
+      }
+
       const request = new sql.Request(transaction);
       request.input('ten', sql.NVarChar, TenCombo);
       request.input('gia', sql.Decimal(18,2), Gia);
@@ -47,6 +58,15 @@ const createCombo = async (req, res) => {
         // Loại bỏ trùng lặp nếu có
         const uniqueMonAn = [...new Set(ChiTiet)];
         for (let maMon of uniqueMonAn) {
+          // Kiểm tra xem món có đang ngừng bán không
+          const checkMon = new sql.Request(transaction);
+          checkMon.input('maMon', sql.Int, maMon);
+          const monRes = await checkMon.query('SELECT TrangThai FROM MonAn WHERE MaMon = @maMon');
+          if (monRes.recordset.length > 0 && monRes.recordset[0].TrangThai === 'Ngừng bán') {
+            await transaction.rollback();
+            return res.status(400).json({ message: `Món ăn với mã ${maMon} đã ngừng bán, không thể thêm vào combo` });
+          }
+
           const reqCT = new sql.Request(transaction);
           reqCT.input('maCombo', sql.Int, maCombo);
           reqCT.input('maMon', sql.Int, maMon);
@@ -74,6 +94,16 @@ const updateCombo = async (req, res) => {
       const { id } = req.params;
       const { TenCombo, Gia, TrangThai, ChiTiet } = req.body;
       
+      if (Number(Gia) < 0) {
+        await transaction.rollback();
+        return res.status(400).json({ message: 'Giá combo không được âm' });
+      }
+
+      if (!ChiTiet || ChiTiet.length === 0) {
+        await transaction.rollback();
+        return res.status(400).json({ message: 'Combo phải có ít nhất một món ăn' });
+      }
+
       const request = new sql.Request(transaction);
       request.input('id', sql.Int, id);
       request.input('ten', sql.NVarChar, TenCombo);
@@ -89,6 +119,15 @@ const updateCombo = async (req, res) => {
         
         const uniqueMonAn = [...new Set(ChiTiet)];
         for (let maMon of uniqueMonAn) {
+          // Kiểm tra xem món có đang ngừng bán không
+          const checkMon = new sql.Request(transaction);
+          checkMon.input('maMon', sql.Int, maMon);
+          const monRes = await checkMon.query('SELECT TrangThai FROM MonAn WHERE MaMon = @maMon');
+          if (monRes.recordset.length > 0 && monRes.recordset[0].TrangThai === 'Ngừng bán') {
+            await transaction.rollback();
+            return res.status(400).json({ message: `Món ăn với mã ${maMon} đã ngừng bán, không thể thêm vào combo` });
+          }
+
           const reqCT = new sql.Request(transaction);
           reqCT.input('maCombo', sql.Int, id);
           reqCT.input('maMon', sql.Int, maMon);

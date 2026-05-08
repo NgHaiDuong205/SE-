@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTables, bookTable, getInvoice, orderItem, getMenu, getCombos, checkout, updateTableStatus, getAllDatBan, createDatBan, updateTrangThaiDatBan, checkVoucher, removeItemFromInvoice, decreaseItemQuantity } from '../services/api';
+import { getTables, bookTable, getInvoice, orderItem, getMenu, getCombos, checkout, updateTableStatus, getAllDatBan, createDatBan, updateTrangThaiDatBan, checkVoucher, removeItemFromInvoice, decreaseItemQuantity, cancelInvoice } from '../services/api';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -94,6 +94,23 @@ const Dashboard = () => {
 
   const handleDatBanSubmit = async () => {
     if (!selectedTable) return;
+    
+    if (!formDatBan.TenKhachHang.trim()) {
+      alert('Vui lòng nhập tên khách hàng');
+      return;
+    }
+    
+    if (!formDatBan.SoDienThoai.trim()) {
+      alert('Vui lòng nhập số điện thoại');
+      return;
+    }
+
+    const phoneRegex = /^[0-9]{10,11}$/;
+    if (!phoneRegex.test(formDatBan.SoDienThoai)) {
+      alert('Số điện thoại không hợp lệ (phải có 10-11 chữ số)');
+      return;
+    }
+
     try {
       const res = await bookTable({
         maBan: selectedTable.MaBan,
@@ -142,6 +159,10 @@ const Dashboard = () => {
   const handleGoiMon = async (mon) => {
     if (!invoice) return;
     const soLuong = quantities[`mon_${mon.MaMon}`] || 1;
+    if (Number(soLuong) <= 0) {
+      alert('Số lượng phải lớn hơn 0');
+      return;
+    }
     try {
       await orderItem({
         maHD: invoice.MaHD,
@@ -162,6 +183,10 @@ const Dashboard = () => {
   const handleGoiCombo = async (combo) => {
     if (!invoice) return;
     const soLuong = quantities[`combo_${combo.MaCombo}`] || 1;
+    if (Number(soLuong) <= 0) {
+      alert('Số lượng phải lớn hơn 0');
+      return;
+    }
     try {
       await orderItem({
         maHD: invoice.MaHD,
@@ -215,6 +240,21 @@ const Dashboard = () => {
     } catch (err) {
       alert(err.response?.data?.message || 'Mã voucher không hợp lệ');
       setDiscountAmount(0);
+    }
+  };
+
+  const handleHuyHoaDon = async () => {
+    if (!invoice || !selectedTable) return;
+    if (!window.confirm('Bạn có chắc chắn muốn hủy hóa đơn này và trả lại bàn trống?')) return;
+    
+    try {
+      await cancelInvoice(invoice.MaHD, selectedTable.MaBan);
+      alert('Hủy hóa đơn thành công');
+      setSelectedTable(null);
+      setInvoice(null);
+      fetchTables();
+    } catch (err) {
+      alert('Lỗi khi hủy hóa đơn');
     }
   };
 
@@ -365,7 +405,11 @@ const Dashboard = () => {
                   <div className="total">
                     <strong>Tổng tiền: {invoice?.TongTien?.toLocaleString() || 0} đ</strong>
                   </div>
-                  <button onClick={() => setShowCheckoutModal(true)} className="btn-success">Thanh toán</button>
+                  {invoice?.ChiTiet?.length > 0 ? (
+                    <button onClick={() => setShowCheckoutModal(true)} className="btn-success">Thanh toán</button>
+                  ) : (
+                    <button onClick={handleHuyHoaDon} className="btn-logout" style={{width: '100%'}}>Hủy hóa đơn & Trả bàn</button>
+                  )}
                   
                   <hr/>
                   <h3>Thực đơn</h3>

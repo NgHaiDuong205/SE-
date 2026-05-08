@@ -11,9 +11,12 @@ const getAllMonAn = async (req, res) => {
   }
 };
 
-const addMonAn = async (req, res) => {
+  const addMonAn = async (req, res) => {
   try {
     const { TenMon, MoTa, Gia } = req.body;
+    if (Number(Gia) < 0) {
+      return res.status(400).json({ message: 'Giá món ăn không được âm' });
+    }
     const request = new sql.Request();
     request.input('tenMon', sql.NVarChar, TenMon);
     request.input('moTa', sql.NVarChar, MoTa);
@@ -26,10 +29,13 @@ const addMonAn = async (req, res) => {
   }
 };
 
-const updateMonAn = async (req, res) => {
+  const updateMonAn = async (req, res) => {
   try {
     const { id } = req.params;
     const { TenMon, MoTa, Gia, TrangThai } = req.body;
+    if (Number(Gia) < 0) {
+      return res.status(400).json({ message: 'Giá món ăn không được âm' });
+    }
     const request = new sql.Request();
     request.input('id', sql.Int, id);
     request.input('tenMon', sql.NVarChar, TenMon);

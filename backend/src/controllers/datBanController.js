@@ -23,6 +23,19 @@ const createDatBan = async (req, res) => {
   try {
     const { MaBan, MaNhanVien, TenKhachHang, SoDienThoai, ThoiGianDat } = req.body;
     
+    if (!TenKhachHang || !TenKhachHang.trim()) {
+      return res.status(400).json({ message: 'Tên khách hàng là bắt buộc' });
+    }
+    
+    if (!SoDienThoai || !SoDienThoai.trim()) {
+      return res.status(400).json({ message: 'Số điện thoại là bắt buộc' });
+    }
+
+    const phoneRegex = /^[0-9]{10,11}$/;
+    if (!phoneRegex.test(SoDienThoai)) {
+      return res.status(400).json({ message: 'Số điện thoại không hợp lệ (phải có 10-11 chữ số)' });
+    }
+    
     // Kiểm tra bàn có đang trống không
     const checkBan = new sql.Request();
     checkBan.input('maBan', sql.Int, MaBan);

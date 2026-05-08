@@ -55,6 +55,10 @@ const Admin = () => {
   /* ----- MENU HANDLERS ----- */
   const handleSubmitMenu = async (e) => {
     e.preventDefault();
+    if (Number(menuForm.Gia) < 0) {
+      alert('Giá món ăn không được âm');
+      return;
+    }
     try {
       if (editMenuId) {
         await updateMenuItem(editMenuId, menuForm);
@@ -98,6 +102,16 @@ const Admin = () => {
       fetchData();
     } catch (err) {
       alert('Lỗi khi mở bán lại');
+    }
+  };
+
+  const handleToggleStatus = async (m) => {
+    const newStatus = m.TrangThai === 'Còn' ? 'Hết' : 'Còn';
+    try {
+      await updateMenuItem(m.MaMon, { ...m, TrangThai: newStatus });
+      fetchData();
+    } catch (err) {
+      alert('Lỗi khi chuyển trạng thái món ăn');
     }
   };
 
@@ -152,6 +166,14 @@ const Admin = () => {
   /* ----- COMBO HANDLERS ----- */
   const handleSubmitCombo = async (e) => {
     e.preventDefault();
+    if (Number(comboForm.Gia) < 0) {
+      alert('Giá combo không được âm');
+      return;
+    }
+    if (!comboForm.ChiTiet || comboForm.ChiTiet.length === 0) {
+      alert('Combo phải có ít nhất một món ăn');
+      return;
+    }
     try {
       if (editComboId) {
         await updateCombo(editComboId, comboForm);
@@ -242,15 +264,13 @@ const Admin = () => {
               <form onSubmit={handleSubmitMenu}>
                 <input type="text" placeholder="Tên món" value={menuForm.TenMon} onChange={e => setMenuForm({...menuForm, TenMon: e.target.value})} required />
                 <input type="text" placeholder="Mô tả" value={menuForm.MoTa} onChange={e => setMenuForm({...menuForm, MoTa: e.target.value})} />
-                <input type="number" placeholder="Giá bán" value={menuForm.Gia} onChange={e => setMenuForm({...menuForm, Gia: e.target.value})} required />
+                <input type="number" placeholder="Giá bán" value={menuForm.Gia} onChange={e => setMenuForm({...menuForm, Gia: e.target.value})} required min="0" />
                 
-                {editMenuId && (
-                  <select value={menuForm.TrangThai} onChange={e => setMenuForm({...menuForm, TrangThai: e.target.value})}>
-                    <option value="Còn">Còn</option>
-                    <option value="Hết">Hết</option>
-                    <option value="Ngừng bán">Ngừng bán</option>
-                  </select>
-                )}
+                <select value={menuForm.TrangThai} onChange={e => setMenuForm({...menuForm, TrangThai: e.target.value})}>
+                  <option value="Còn">Còn</option>
+                  <option value="Hết">Hết</option>
+                  <option value="Ngừng bán">Ngừng bán</option>
+                </select>
 
                 <div style={{display:'flex', gap:'10px'}}>
                   <button type="submit" className="btn-success" style={{flex:1}}>{editMenuId ? 'Cập nhật' : 'Lưu Món Ăn'}</button>
@@ -269,6 +289,15 @@ const Admin = () => {
                       <td style={{color: m.TrangThai === 'Ngừng bán' ? 'red' : m.TrangThai === 'Hết' ? 'orange' : 'green', fontWeight:'bold'}}>{m.TrangThai}</td>
                       <td>
                         <button onClick={() => handleEditMenu(m)} className="btn-edit" style={{marginRight: '5px'}}>Sửa</button>
+                        {m.TrangThai !== 'Ngừng bán' && (
+                          <button 
+                            onClick={() => handleToggleStatus(m)} 
+                            className={m.TrangThai === 'Còn' ? 'btn-warning' : 'btn-primary'}
+                            style={{marginRight: '5px'}}
+                          >
+                            {m.TrangThai === 'Còn' ? 'Hết món' : 'Còn món'}
+                          </button>
+                        )}
                         {m.TrangThai === 'Ngừng bán' ? (
                           <button onClick={() => handleRestoreMenu(m)} className="btn-success">Mở bán lại</button>
                         ) : (
@@ -300,7 +329,7 @@ const Admin = () => {
               <h2>{editComboId ? 'Sửa Combo' : 'Tạo Combo Mới'}</h2>
               <form onSubmit={handleSubmitCombo}>
                 <input type="text" placeholder="Tên Combo" value={comboForm.TenCombo} onChange={e => setComboForm({...comboForm, TenCombo: e.target.value})} required />
-                <input type="number" placeholder="Giá Combo" value={comboForm.Gia} onChange={e => setComboForm({...comboForm, Gia: e.target.value})} required />
+                <input type="number" placeholder="Giá Combo" value={comboForm.Gia} onChange={e => setComboForm({...comboForm, Gia: e.target.value})} required min="0" />
                 
                 {editComboId && (
                   <select value={comboForm.TrangThai} onChange={e => setComboForm({...comboForm, TrangThai: e.target.value})}>
@@ -311,10 +340,12 @@ const Admin = () => {
 
                 <div className="combo-selector">
                   <h4>Chọn các món trong Combo:</h4>
-                  {menu.map(m => (
+                  {menu
+                    .filter(m => m.TrangThai !== 'Ngừng bán' || comboForm.ChiTiet.includes(Number(m.MaMon)))
+                    .map(m => (
                     <label key={m.MaMon} style={{display:'block'}}>
                       <input type="checkbox" checked={comboForm.ChiTiet.includes(Number(m.MaMon))} onChange={() => toggleComboItem(m.MaMon)} />
-                      {m.TenMon}
+                      {m.TenMon} {m.TrangThai === 'Ngừng bán' && <span style={{color:'red'}}>(Ngừng bán)</span>}
                     </label>
                   ))}
                 </div>

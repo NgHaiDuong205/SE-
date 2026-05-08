@@ -127,3 +127,29 @@
 .btn-success:hover { background-color: #388e3c; }
 .btn-danger:hover { background-color: #d32f2f; }
 .btn-logout:hover { background-color: #757575; }
+
+.btn-warning {
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-warning:hover {
+  background-color: #f57c00;
+}
+
+.btn-primary {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background-color: #1565c0;
+}

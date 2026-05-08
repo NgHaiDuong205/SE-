@@ -2,7 +2,7 @@ const sql = require('mssql/msnodesqlv8');
 require('dotenv').config();
 
 const config = {
-  connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=.\\MSSQLSERVER02;Database=${process.env.DB_NAME};Trusted_Connection=yes;`
+  connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=${process.env.DB_SERVER};Database=${process.env.DB_NAME};Trusted_Connection=yes;TrustServerCertificate=yes;`
 };
 
 const connectDB = async () => {

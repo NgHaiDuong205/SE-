@@ -11,8 +11,12 @@ const Dashboard = () => {
   const [invoice, setInvoice] = useState(null);
   const [datBans, setDatBans] = useState([]);
   const [invoices, setInvoices] = useState([]); // Keep this for potential history view elsewhere
-  const [activeTab, setActiveTab] = useState('service'); // 'service', 'booking', 'payment'
+  const [activeTab, setActiveTab] = useState('service'); // 'service', 'order', 'payment'
   const [quantities, setQuantities] = useState({}); // { itemKey: quantity }
+
+  // Goi Mon tab states
+  const [orderSelectedTable, setOrderSelectedTable] = useState(null);
+  const [orderInvoice, setOrderInvoice] = useState(null);
 
   
   // Checkout Modal states
@@ -346,7 +350,13 @@ const Dashboard = () => {
           className={activeTab === 'service' ? 'active' : ''} 
           onClick={() => setActiveTab('service')}
         >
-          Sơ đồ bàn (Phục vụ)
+          Sơ đồ bàn
+        </button>
+        <button 
+          className={activeTab === 'order' ? 'active' : ''} 
+          onClick={() => { setActiveTab('order'); fetchTables(); setOrderSelectedTable(null); setOrderInvoice(null); }}
+        >
+          Gọi món
         </button>
         <button 
           className={activeTab === 'payment' ? 'active' : ''} 
@@ -404,48 +414,7 @@ const Dashboard = () => {
                       <ul className="invoice-items">
                         {invoice?.ChiTiet?.map((item, idx) => (
                           <li key={idx}>
-                            <div style={{display: 'flex', gap: '5px', alignItems: 'center'}}>
-                              <button 
-                                onClick={() => handleDecreaseQuantity(item.ID)} 
-                                style={{
-                                  background: '#2196F3', 
-                                  color: 'white', 
-                                  border: 'none', 
-                                  borderRadius: '50%', 
-                                  width: '24px', 
-                                  height: '24px', 
-                                  cursor: 'pointer',
-                                  fontSize: '16px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  paddingBottom: '2px'
-                                }}
-                                title="Giảm 1"
-                              >
-                                -
-                              </button>
-                              <button 
-                                onClick={() => handleRemoveItem(item.ID)} 
-                                style={{
-                                  background: '#ff4444', 
-                                  color: 'white', 
-                                  border: 'none', 
-                                  borderRadius: '50%', 
-                                  width: '24px', 
-                                  height: '24px', 
-                                  cursor: 'pointer',
-                                  fontSize: '12px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                                title="Xóa hẳn"
-                              >
-                                X
-                              </button>
-                              <span>{item.TenMon} x {item.SoLuong}</span>
-                            </div>
+                            <span>{item.TenMon} x {item.SoLuong}</span>
                             <span>{(item.SoLuong * item.DonGia).toLocaleString()} đ</span>
                           </li>
                         ))}
@@ -458,52 +427,9 @@ const Dashboard = () => {
                       ) : (
                         <button onClick={handleHuyHoaDon} className="btn-logout" style={{width: '100%'}}>Hủy hóa đơn & Trả bàn</button>
                       )}
-                      
-                      <hr/>
-                      <h3>Thực đơn</h3>
-                      <div className="menu-list">
-                        {menu.map(mon => (
-                          <div key={mon.MaMon} className={`menu-item ${mon.TrangThai === 'Hết' ? 'out-of-stock' : ''}`}>
-                            <span>{mon.TenMon} - {mon.Gia.toLocaleString()} đ {mon.TrangThai === 'Hết' && <strong style={{color:'red'}}>(Hết)</strong>}</span>
-                            <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
-                              <input 
-                                type="number" 
-                                min="1" 
-                                value={quantities[`mon_${mon.MaMon}`] || 1} 
-                                onChange={e => setQuantities({...quantities, [`mon_${mon.MaMon}`]: e.target.value})}
-                                className="input-quantity"
-                                disabled={mon.TrangThai === 'Hết'}
-                              />
-                              <button onClick={() => handleGoiMon(mon)} className="btn-add" disabled={mon.TrangThai === 'Hết'}>Thêm</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <hr style={{margin: '15px 0'}}/>
-                      <h3>Danh sách Combo</h3>
-                      <div className="menu-list">
-                        {combos.map(combo => (
-                          <div key={combo.MaCombo} className="menu-item combo-item">
-                            <div style={{display: 'flex', flexDirection: 'column'}}>
-                              <strong>{combo.TenCombo} - {combo.Gia.toLocaleString()} đ</strong>
-                              <small style={{fontSize: '0.8rem', color: '#666'}}>
-                                ({combo.ChiTiet.map(ct => ct.TenMon).join(', ')})
-                              </small>
-                            </div>
-                            <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
-                              <input 
-                                type="number" 
-                                min="1" 
-                                value={quantities[`combo_${combo.MaCombo}`] || 1} 
-                                onChange={e => setQuantities({...quantities, [`combo_${combo.MaCombo}`]: e.target.value})}
-                                className="input-quantity"
-                              />
-                              <button onClick={() => handleGoiCombo(combo)} className="btn-add">Thêm</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                      <p style={{marginTop: '15px', color: '#666', fontSize: '0.9rem', textAlign: 'center'}}>
+                        💡 Để gọi thêm món, vui lòng chuyển sang tab <strong>Gọi món</strong>
+                      </p>
                     </div>
                   )}
                 </div>
@@ -514,6 +440,174 @@ const Dashboard = () => {
               )}
             </div>
           </>
+        )}
+
+        {activeTab === 'order' && (
+          <div className="table-section">
+            {!orderSelectedTable ? (
+              <>
+                <h2>Gọi món</h2>
+                <p style={{marginBottom: '20px', color: '#666'}}>Chọn bàn đang phục vụ để gọi món.</p>
+                <div className="table-grid">
+                  {tables.filter(t => t.TrangThai === 'Đang phục vụ').map(t => (
+                    <div
+                      key={t.MaBan}
+                      className="table-card occupied"
+                      onClick={async () => {
+                        setOrderSelectedTable(t);
+                        try {
+                          const res = await getInvoice(t.MaBan);
+                          if (res.data.data) setOrderInvoice(res.data.data);
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                      style={{cursor: 'pointer'}}
+                    >
+                      <h3>{t.TenBan}</h3>
+                      <p>{t.TrangThai}</p>
+                    </div>
+                  ))}
+                  {tables.filter(t => t.TrangThai === 'Đang phục vụ').length === 0 && (
+                    <div style={{gridColumn: '1/-1', textAlign: 'center', padding: '50px', background: '#f9f9f9', borderRadius: '8px'}}>
+                      <p>Hiện không có bàn nào đang phục vụ.</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div style={{display: 'flex', gap: '20px'}}>
+                <div style={{flex: 1}}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px'}}>
+                    <button
+                      onClick={() => { setOrderSelectedTable(null); setOrderInvoice(null); fetchTables(); }}
+                      className="btn-primary"
+                      style={{width: 'auto', padding: '8px 16px', fontSize: '0.9rem'}}
+                    >
+                      ← Quay lại
+                    </button>
+                    <h2 style={{margin: 0}}>Gọi món - {orderSelectedTable.TenBan}</h2>
+                  </div>
+
+                  <div className="side-panel">
+                    <h3>Hóa đơn (Mã HD: {orderInvoice?.MaHD})</h3>
+                    {orderInvoice?.TenKhachHang && <p><strong>Khách hàng:</strong> {orderInvoice.TenKhachHang} - {orderInvoice.SoDienThoai}</p>}
+                    <ul className="invoice-items">
+                      {orderInvoice?.ChiTiet?.map((item, idx) => (
+                        <li key={idx}>
+                          <div style={{display: 'flex', gap: '5px', alignItems: 'center'}}>
+                            <button
+                              onClick={async () => {
+                                if (!orderInvoice) return;
+                                try {
+                                  await decreaseItemQuantity(item.ID, orderInvoice.MaHD);
+                                  const res = await getInvoice(orderSelectedTable.MaBan);
+                                  setOrderInvoice(res.data.data);
+                                } catch (err) { alert('Lỗi khi giảm số lượng'); }
+                              }}
+                              style={{background: '#2196F3', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: '2px'}}
+                              title="Giảm 1"
+                            >-</button>
+                            <button
+                              onClick={async () => {
+                                if (!orderInvoice) return;
+                                if (!window.confirm('Bạn có chắc chắn muốn xóa hẳn món này khỏi hóa đơn?')) return;
+                                try {
+                                  await removeItemFromInvoice(item.ID, orderInvoice.MaHD);
+                                  const res = await getInvoice(orderSelectedTable.MaBan);
+                                  setOrderInvoice(res.data.data);
+                                } catch (err) { alert('Lỗi khi xóa món'); }
+                              }}
+                              style={{background: '#ff4444', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
+                              title="Xóa hẳn"
+                            >X</button>
+                            <span>{item.TenMon} x {item.SoLuong}</span>
+                          </div>
+                          <span>{(item.SoLuong * item.DonGia).toLocaleString()} đ</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="total">
+                      <strong>Tổng tiền: {orderInvoice?.TongTien?.toLocaleString() || 0} đ</strong>
+                    </div>
+
+                    <hr/>
+                    <h3>Thực đơn</h3>
+                    <div className="menu-list">
+                      {menu.map(mon => (
+                        <div key={mon.MaMon} className={`menu-item ${mon.TrangThai === 'Hết' ? 'out-of-stock' : ''}`}>
+                          <span>{mon.TenMon} - {mon.Gia.toLocaleString()} đ {mon.TrangThai === 'Hết' && <strong style={{color:'red'}}>(Hết)</strong>}</span>
+                          <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={quantities[`mon_${mon.MaMon}`] || 1}
+                              onChange={e => setQuantities({...quantities, [`mon_${mon.MaMon}`]: e.target.value})}
+                              className="input-quantity"
+                              disabled={mon.TrangThai === 'Hết'}
+                            />
+                            <button
+                              onClick={async () => {
+                                if (!orderInvoice) return;
+                                const soLuong = quantities[`mon_${mon.MaMon}`] || 1;
+                                if (Number(soLuong) <= 0) { alert('Số lượng phải lớn hơn 0'); return; }
+                                try {
+                                  await orderItem({ maHD: orderInvoice.MaHD, maMon: mon.MaMon, soLuong: Number(soLuong), donGia: mon.Gia });
+                                  const res = await getInvoice(orderSelectedTable.MaBan);
+                                  setOrderInvoice(res.data.data);
+                                  setQuantities({...quantities, [`mon_${mon.MaMon}`]: 1});
+                                } catch (err) { alert('Lỗi gọi món'); }
+                              }}
+                              className="btn-add"
+                              disabled={mon.TrangThai === 'Hết'}
+                            >Thêm</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <hr style={{margin: '15px 0'}}/>
+                    <h3>Danh sách Combo</h3>
+                    <div className="menu-list">
+                      {combos.map(combo => (
+                        <div key={combo.MaCombo} className="menu-item combo-item">
+                          <div style={{display: 'flex', flexDirection: 'column'}}>
+                            <strong>{combo.TenCombo} - {combo.Gia.toLocaleString()} đ</strong>
+                            <small style={{fontSize: '0.8rem', color: '#666'}}>
+                              ({combo.ChiTiet.map(ct => ct.TenMon).join(', ')})
+                            </small>
+                          </div>
+                          <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={quantities[`combo_${combo.MaCombo}`] || 1}
+                              onChange={e => setQuantities({...quantities, [`combo_${combo.MaCombo}`]: e.target.value})}
+                              className="input-quantity"
+                            />
+                            <button
+                              onClick={async () => {
+                                if (!orderInvoice) return;
+                                const soLuong = quantities[`combo_${combo.MaCombo}`] || 1;
+                                if (Number(soLuong) <= 0) { alert('Số lượng phải lớn hơn 0'); return; }
+                                try {
+                                  await orderItem({ maHD: orderInvoice.MaHD, maCombo: combo.MaCombo, soLuong: Number(soLuong), donGia: combo.Gia });
+                                  const res = await getInvoice(orderSelectedTable.MaBan);
+                                  setOrderInvoice(res.data.data);
+                                  setQuantities({...quantities, [`combo_${combo.MaCombo}`]: 1});
+                                } catch (err) { alert('Lỗi gọi combo'); }
+                              }}
+                              className="btn-add"
+                            >Thêm</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'payment' && (
